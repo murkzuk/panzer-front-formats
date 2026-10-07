@@ -80,15 +80,37 @@ one 3888-byte payload gives `T39 . 000 . P60 N60 C60 . T20`.
 Payload length also satisfies `48 + 64*V` for 84.9% of payloads, 64 bytes being the four
 16-byte rows of one vertex.
 
-### Still not known
+### Position / normal separation — fixed, but it was not the bug
 
-- **Triangle assembly.** Positions appear to be listed per triangle, but taking every three
-  consecutive position rows gives clean results for simple map objects and a partly
-  scrambled result for vehicles, so strips or per-sub-mesh restarts are likely.
-- **Position / normal separation.** Both rows are `(x, y, z, 1.0)` and are currently told
-  apart by testing whether the vector is unit length. A position that happens to lie on the
-  unit sphere is mis-sorted, which breaks the triangle sequence after it. This is the most
-  likely cause of the stray geometry on vehicles and wants a proper rule.
+Positions and normals share the shape `(x, y, z, 1.0)` and arrive as one contiguous run,
+**positions first, then normals**. Measured over 13,644 runs: the second half is 92.2%
+unit vectors, the first half only 9.6%.
+
+`tools/pz2obj.py` now finds the split by changepoint — the index maximising
+(non-unit before) + (unit after) — rather than testing each row for unit length. That is
+principled and handles odd-length runs, which an exact halving cannot.
+
+**It recovered 22 vertices out of 3793.** Mis-sorted positions were therefore *not* the
+cause of the scrambled vehicle meshes, and the earlier note blaming them was wrong.
+
+### Still not known — triangle connectivity
+
+This is the open problem. Positions extract with sensible bounding boxes (one vehicle hull
+node: x 3.0 x y 1.6 x z 5.6, correct proportions for a tank hull), but the mesh does not
+assemble:
+
+- **triangle list** (every 3 consecutive), **triangle strip** and **fan** were each rendered
+  and compared. All three produce incoherent geometry on vehicles. The list is the least
+  bad.
+- Rendering nodes **in local space, without the hierarchy**, is scrambled too — so the
+  parent-chain matrix composition is not at fault either.
+- Simple map objects (4 nodes) assemble correctly; vehicles (150-200 nodes) do not.
+
+The most likely remaining explanation is that a single `w == 1` run spans **several
+sub-meshes**, so concatenating its positions runs triangles across boundaries that should
+restart. Finding where sub-meshes begin inside a payload is the next thing to solve.
+
+### Also not known
 - Material and texture bindings — which `.PZA` a sub-mesh uses.
 - What the per-node ID values mean.
 
