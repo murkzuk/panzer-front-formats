@@ -93,6 +93,28 @@ principled and handles odd-length runs, which an exact halving cannot.
 **It recovered 22 vertices out of 3793.** Mis-sorted positions were therefore *not* the
 cause of the scrambled vehicle meshes, and the earlier note blaming them was wrong.
 
+### Sub-mesh boundaries — found
+
+A payload holds several sub-meshes, delimited by **three consecutive all-zero rows**
+(48 bytes). Measured over 11,401 delimiters across the whole file set:
+
+| | |
+|---|---|
+| row immediately **after** a delimiter | `P` position in **11,349** (99.5%) |
+| row immediately **before** | `T` texcoord in **11,286** (99.0%) |
+
+So a sub-mesh is ordered **P -> N -> C -> T**, and the delimiter separates one sub-mesh's
+texcoords from the next sub-mesh's positions. Zero-runs are 3 rows long in 11,401 of
+~12,400 cases; the stray lengths (1, 2, 9, 15) are rarer and unexplained.
+
+This also matches the size rule: one 3-row delimiter is exactly the 48 bytes in
+`48 + 64*V`.
+
+`tools/pz2obj.py` now restarts triangles at each delimiter rather than running them across
+boundaries. **It changed 110003 from 1262 to 1144 triangles and the mesh is marginally
+cleaner — but vehicles still do not assemble into recognisable shapes.** The delimiter is
+real; it was not the remaining bug.
+
 ### Still not known — triangle connectivity
 
 This is the open problem. Positions extract with sensible bounding boxes (one vehicle hull
@@ -106,9 +128,10 @@ assemble:
   parent-chain matrix composition is not at fault either.
 - Simple map objects (4 nodes) assemble correctly; vehicles (150-200 nodes) do not.
 
-The most likely remaining explanation is that a single `w == 1` run spans **several
-sub-meshes**, so concatenating its positions runs triangles across boundaries that should
-restart. Finding where sub-meshes begin inside a payload is the next thing to solve.
+Sub-mesh boundaries have since been found (above) and restarting triangles there did not
+fix it. Remaining candidates, none tested: the positions within a sub-mesh are strips
+rather than a list; the position/normal changepoint picks the wrong `V` for many sub-meshes,
+shifting everything after it; or an index list exists somewhere not yet located.
 
 ### Also not known
 - Material and texture bindings — which `.PZA` a sub-mesh uses.

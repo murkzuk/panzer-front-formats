@@ -27,6 +27,38 @@ def split_run(f, start, run):
             post_unit   -= unit[k]
     return best_k
 
+def submeshes(f, rows):
+    """Split a payload into sub-meshes.
+
+    Sub-meshes are delimited by three all-zero rows; after a delimiter comes the
+    position run, then normals, then colours, then texcoords (P in 99.5% of 11,401
+    delimiters, T immediately before in 99.0%). Triangles must restart at each
+    delimiter — running them across a boundary is what scrambles a vehicle mesh.
+    """
+    def zero(r):  return all(f[r*4+t] == 0.0 for t in range(4))
+    def w1(r):    return f[r*4+3] == 1.0
+    starts = []
+    r = 0
+    while r < rows:
+        if zero(r):
+            j = r
+            while j < rows and zero(j): j += 1
+            if j - r == 3 and j < rows and w1(j): starts.append(j)
+            r = j
+        else:
+            r += 1
+    if not starts and rows and w1(0): starts = [0]
+    out = []
+    for s0 in starts:
+        j = s0
+        while j < rows and w1(j): j += 1
+        run = j - s0
+        if run < 6: continue
+        k = split_run(f, s0, run)
+        if k < 3: continue
+        out.append([tuple(f[(s0+q)*4+t] for t in range(3)) for q in range(k)])
+    return out
+
 def load(path):
     d = open(path, 'rb').read()
     size, n = struct.unpack_from('<II', d, 0)
@@ -42,22 +74,11 @@ def load(path):
     for i, (o, e) in enumerate(zip(offs, ends)):
         at = base + o + phase
         rows = max(0, ((e - o) - phase) // 16)
-        pos = []
+        subs = []
         if rows:
             f = struct.unpack_from('<%df' % (rows*4), d, at)
-            r = 0
-            while r < rows:
-                if f[r*4+3] == 1.0:
-                    j = r
-                    while j < rows and f[j*4+3] == 1.0: j += 1
-                    run = j - r
-                    k = split_run(f, r, run)
-                    for q in range(k):
-                        pos.append(tuple(f[(r+q)*4+t] for t in range(3)))
-                    r = j
-                else:
-                    r += 1
-        nodes.append(dict(i=i, id=ids[i], par=par[i], mat=mats[i], pos=pos))
+            subs = submeshes(f, rows)
+        nodes.append(dict(i=i, id=ids[i], par=par[i], mat=mats[i], subs=subs))
     return n, nodes
 
 def world(nodes, i):
@@ -79,11 +100,13 @@ if __name__ == '__main__':
     n, nodes = load(src)
     V = []; F = []
     for nd in nodes:
-        if len(nd['pos']) < 3: continue
-        M = world(nodes, nd['i']); b = len(V)
-        for p in nd['pos']: V.append(xf(M, p))
-        for t in range(len(nd['pos']) // 3):
-            F.append((b+t*3+1, b+t*3+2, b+t*3+3))
+        if not nd['subs']: continue
+        M = world(nodes, nd['i'])
+        for sub in nd['subs']:
+            b = len(V)
+            for p in sub: V.append(xf(M, p))
+            for t in range(len(sub) // 3):
+                F.append((b+t*3+1, b+t*3+2, b+t*3+3))
     with open(dst, 'w') as fh:
         fh.write('# %s  %d nodes\n' % (os.path.basename(src), n))
         for v in V: fh.write('v %.6f %.6f %.6f\n' % v)
