@@ -21,10 +21,11 @@ and crew-position interior panels. 1404 of 1405 files decode cleanly.*
 | [pak.md](docs/pak.md) | the disc archive — **solved** |
 | [pza.md](docs/pza.md) | indexed textures, 1409 files — **solved** |
 | [pze.md](docs/pze.md) | message tables, all in-game text — **solved** |
+| [pz.md](docs/pz.md) | models — scene graph **solved**, mesh partial |
 | [st.md](docs/st.md) | per-vehicle statistics — partial |
 | [formats-status.md](docs/formats-status.md) | everything else, and what is still open |
 
-The geometry format is the main thing still unsolved.
+The mesh payload inside `.PZ` is the main thing still unsolved.
 
 ## Tools
 

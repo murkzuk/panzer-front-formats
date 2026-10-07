@@ -7,7 +7,7 @@
 | `.PZE` | 324 | **solved** — message table, see [pze.md](pze.md) |
 | `.TXT` | 217 | plain Shift-JIS, source for `.PZE` |
 | `.ST` | 112 | partial — float stat table, see [st.md](st.md) |
-| `.PZ` | 129 | unknown — likely geometry |
+| `.PZ` | 129 | **container solved**, mesh payload partial — see [pz.md](pz.md) |
 | `.PZD` | 57 | unknown |
 | `.AMD` | 54 | unknown — "AMD" may be animation data |
 | `.DAT` | 43 | unknown |
@@ -17,5 +17,7 @@
 | `.IRX` | 82 | Sony IOP modules, standard PS2 |
 | `.WAV` | 16 | audio |
 
-The model/geometry format is the main thing still open: `.PZ`, `.PZD` and `.AMD` are the
-candidates.
+`.PZ` is the model format. Its scene graph — hierarchy, node IDs and per-node 4x4
+transforms — is solved and verified on all 129 files. The mesh payload is only partly
+decoded: UV and position streams are identified, but the chunking that delimits them is
+not, so models cannot yet be loaded.
