@@ -162,6 +162,19 @@ root-first, which is backwards — now corrected. In practice it changes almost 
 because nearly every rotation is identity, and both orders give the same bounding box to
 within 3%.
 
+### The prefix before the first delimiter is bounding-volume data
+
+Examined across all 129 files. It is **not** a primitive table and carries no per-sub-mesh
+type or vertex count.
+
+- **13,101 float pairs contain a +-100000 sentinel** — the classic "empty axis-aligned
+  bounding box" initialiser, and the same marker already noted in the root node's payload.
+- 60.3% of 84,020 pairs are ordered `first >= second`, consistent with (max, min) extents.
+- Its length does not divide by the node count: 2.08 to 19.75 rows per node across the set,
+  mean 7.33. So it is a tree of variable depth, not a per-node table.
+
+This was the last named candidate for where a primitive type might live. It is ruled out.
+
 ### Still not known — triangle connectivity
 
 This is the open problem. Positions extract with sensible bounding boxes (one vehicle hull
@@ -183,9 +196,14 @@ sub-meshes, so that is not it either.
 
 Each of those was a genuine defect and each was fixed. None was the cause.
 
-What remains untested: whether the undecoded prefix before the first delimiter carries a
-primitive type or a per-sub-mesh vertex count, and whether the stream order within a
-sub-mesh varies rather than always being P-N-C-T.
+The prefix has since been examined (above) and holds bounding-volume data, not primitive
+information — so that candidate is gone too.
+
+What genuinely remains untested: whether the stream order within a sub-mesh varies rather
+than always being P-N-C-T, and whether the engine itself derives connectivity some other
+way. Answering it properly probably needs the loader in the game's ELF rather than more
+inference from the data. `$gp = 0x00273570` and a gp-aware cross-reference scanner exist in
+the research notes; a multiply by 72 or 76 in the ELF would locate the .PZ parser.
 
 A simple 4-node map object assembles correctly and renders as clean walls and a roof, so
 the container, phase, transforms and vertex extraction are all sound. The failure is
