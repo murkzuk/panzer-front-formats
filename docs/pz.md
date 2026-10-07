@@ -26,38 +26,60 @@ Node IDs are semantic, not sequential — `100000` for the root, then codes like
 `10090`, `60010`, `1101`, `30000`. They group plausibly by part, but **no ID has been tied
 to a named component**.
 
-## Payloads — partly decoded
+## Payloads — four streams identified, chunking still open
 
-There is **no per-node header**; a payload begins immediately with float data. Payload
-lengths are divisible by 24 in all 10,038 blocks examined, and by 16 and 48 in 99.6%.
+There is **no per-node header**; a payload begins immediately with float data.
 
-Two data streams are identified, both arrays of four floats:
+### The four vertex streams
+
+All are arrays of four 32-bit floats, 16 bytes per element:
 
 | stream | shape | notes |
 |---|---|---|
-| texture coordinates | `(1.0, 0.0, u, v)` | u,v in 0..1. Consecutive rows form triangles — rows 1-3 and 4-6 of a quad share the expected corners. |
-| positions | `(x, y, z, 1.0)` | homogeneous, small magnitudes consistent with part-local space |
+| position | `(x, y, z, 1.0)` | part-local space |
+| normal | `(nx, ny, nz, 1.0)` | same shape as position; told apart by `\|xyz\| == 1` |
+| vertex colour | `(r, g, b, 0.0)` | 0..255 as floats; `255,255,255` and `128,128,128` dominate |
+| texture coords | `(1.0, 0.0, u, v)` | u,v in 0..1; consecutive rows form triangles, rows 1-3 and 4-6 of a quad sharing the expected corners |
 
-Streams are separated by runs of zero floats. The root node's payload is different again:
-min/max float pairs and `+-100000` sentinels, i.e. a **bounding-volume tree**, not mesh.
+Four streams x 16 bytes = **64 bytes per vertex**.
 
-## What is NOT known
+### The size rule
 
-- **The chunking rule.** Stream starts are found by inspecting content, not by reading a
-  count or a type tag. In one leaf the UV stream runs 40 rows, then 10 zero floats, then
-  positions begin at a byte offset that is 8-aligned but not 16-aligned. No header
-  explaining that has been located.
-- How UV rows correspond to position rows (no index buffer has been found).
-- Normals, vertex colours, material or texture bindings.
-- What the second header array (node IDs) means per part.
+`payloadLength = 48 + 64 * V` holds for **84.9%** of the 10,038 payloads, which gives a
+vertex count. The remaining 15% are `32`, `16` or `0` mod 64 — consistent with sub-meshes
+that carry three streams rather than four, but this has not been confirmed.
 
-**This is not enough to load a model.** The hierarchy, transforms and the existence of UV
-and position data are solid; the geometry cannot yet be reconstructed.
+Payload lengths are divisible by 16 in 99.6% of cases and by 24 in 100%.
 
-## Related, unexamined
+### Sub-meshes
 
-| ext | count | note |
-|---|---|---|
-| `.PZD` | 57 | exactly 84 bytes each, all under `\D\ME\BRIEFING` — not geometry |
-| `.AMD` | 54 | all under `\D\OT\AS\INF` — infantry, plausibly animation |
-| `.PZC` | 23 | all exactly 657,096 bytes under `\D\MA\GRD` — terrain-sized |
+A payload holds **more than one sub-mesh**, and their vertex counts sum to `V`. Clearest
+example, a 6624-byte payload giving `V = (6624-48)/64 = 102`:
+
+```
+C11  pad3  P60 N60 C120  pad3  P42 N42 C73
+                 ^^^              ^^^
+                 60      +        42   = 102 = V
+```
+
+Sub-meshes appear to be separated by three zero floats.
+
+### What is still NOT known
+
+- **The stream offsets.** Boundaries are found by classifying content, not by reading any
+  count or tag. In one leaf the UV rows are split 40 at the start and 20 at the end of the
+  payload with position, normal and colour data in between — a layout no simple
+  `[UV][POS][NRM][COL]` model explains.
+- **The sub-mesh header.** Each sub-mesh is preceded by a short run that classifies as
+  colour-like, of varying length (11, 86, ...). Its contents have not been decoded.
+- Material and texture bindings; which `.PZA` a sub-mesh uses.
+- No index buffer has been found, so vertices are presumably listed per triangle.
+
+A check worth recording as a *negative* result: predicting `positions + normals == 2V`
+from the size rule matches only **21%** of payloads, always falling short by a multiple of
+6. That is most likely the position/normal classifier mis-sorting rows whose length is
+near 1, not a failure of the size rule — but it has not been run down, and until it is,
+the vertex count cannot be trusted per sub-mesh.
+
+**Still not enough to load a model.** The hierarchy, transforms, vertex format and total
+vertex count are known; where each stream begins is not.
