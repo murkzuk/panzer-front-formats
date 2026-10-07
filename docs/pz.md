@@ -115,6 +115,27 @@ boundaries. **It changed 110003 from 1262 to 1144 triangles and the mesh is marg
 cleaner — but vehicles still do not assemble into recognisable shapes.** The delimiter is
 real; it was not the remaining bug.
 
+### Vertex count — structural, not inferred
+
+A sub-mesh is four equal streams, so
+
+```
+V = (rows between one delimiter and the next) / 4
+```
+
+That chunk length is divisible by 4 in 8,399 of 11,053 sub-meshes, and the rule is
+confirmed independently: **the colour run length equals that V in 8,996 of 11,053 (81.4%)**.
+
+The earlier changepoint on the position/normal run **disagrees with it 34.6% of the time**,
+so the hypothesis that the changepoint was corrupting sub-meshes is confirmed. The exporter
+now derives V structurally and falls back to the changepoint only when the position run is
+shorter than V.
+
+It took 110003 from 1144 to 895 triangles and the mesh is cleaner again — **but vehicles
+still do not assemble into recognisable shapes.** Three successive structural fixes (sub-mesh
+restart, structural V, position/normal split) have each been confirmed correct by
+measurement and each left the rendering broken. Something else is still wrong.
+
 ### Still not known — triangle connectivity
 
 This is the open problem. Positions extract with sensible bounding boxes (one vehicle hull
@@ -128,10 +149,18 @@ assemble:
   parent-chain matrix composition is not at fault either.
 - Simple map objects (4 nodes) assemble correctly; vehicles (150-200 nodes) do not.
 
-Sub-mesh boundaries have since been found (above) and restarting triangles there did not
-fix it. Remaining candidates, none tested: the positions within a sub-mesh are strips
-rather than a list; the position/normal changepoint picks the wrong `V` for many sub-meshes,
-shifting everything after it; or an index list exists somewhere not yet located.
+Ruled out by test: triangle list vs strip vs fan; the parent-chain matrix composition
+(nodes are scrambled in local space too); triangles running across sub-mesh boundaries;
+and the changepoint vertex count. Each was a real defect, each was fixed, none was the
+cause.
+
+What remains untested: whether an index list exists somewhere not yet located, whether
+sub-meshes carry a primitive-type field in the undecoded prefix before the first delimiter,
+and whether the four streams are in a per-sub-mesh order other than P-N-C-T.
+
+A simple 4-node map object assembles correctly and renders as clean walls and a roof, so
+the container, phase, transforms and vertex extraction are all sound. The failure is
+specific to how a vehicle's many small sub-meshes are stitched.
 
 ### Also not known
 - Material and texture bindings — which `.PZA` a sub-mesh uses.
