@@ -3,8 +3,16 @@
 Reverse-engineered file formats, extraction tools and emulator research for
 **Panzer Front Ausf.B** (PlayStation 2, 2004). PAL release SLES-52984, CRC `F2694B94`.
 
-**This repository contains no game data.** The tools read your own disc image. Nothing
-extracted from the game is redistributable, and the `.gitignore` is set up to keep it out.
+**This repository contains no usable game data.** The tools read your own disc image.
+Nothing extracted from the game is redistributable, and the `.gitignore` keeps it out —
+the only exception is the small illustrative thumbnails below, included to document what
+the texture decoder produces.
+
+![Textures decoded from the PZA format](docs/img/pza-samples.png)
+
+*Decoded with `tools/pza2png.py`: vehicle skins, cloud layers, 1940 briefing maps of the
+Belgian ground around Jandrenouille and Merdorp, national markings and turret numerals,
+and crew-position interior panels. 1404 of 1405 files decode cleanly.*
 
 ## Formats
 
