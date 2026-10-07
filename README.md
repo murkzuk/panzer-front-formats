@@ -29,7 +29,8 @@ crew-position interior panels. 1409 of 1409 files decode exactly.*
 | [pza.md](docs/pza.md) | indexed textures, 1409 files — **solved** |
 | [pze.md](docs/pze.md) | message tables, all in-game text — **solved** |
 | [pz.md](docs/pz.md) | models — **solved**, loading and textured |
-| [st.md](docs/st.md) | per-vehicle statistics — partial |
+| [tank-tables.md](docs/tank-tables.md) | vehicle roster and camouflage selector — **solved** |
+| [st.md](docs/st.md) | per-vehicle gunnery table — partial |
 | [formats-status.md](docs/formats-status.md) | everything else, and what is still open |
 
 Remaining unknowns are decal placement and the `.T` / `.TEX` map-prop textures.

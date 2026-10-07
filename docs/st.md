@@ -1,4 +1,4 @@
-# ST — statistics table
+# ST — gunnery table
 
 112 files, 3.3 MB. **Partially understood.**
 
@@ -16,9 +16,14 @@ There is no vertex or index structure; the tail is zero-padded.
 A 16-byte header precedes the data, e.g. `33 00 10 81 00 01 01 00 03 01 0A 01`, then
 floats from 0x0C onward.
 
-## What is not known
+## It is a gunnery table, not a selector
 
-The record layout, and what the values mean. Given a simulation that models component
-damage, a per-vehicle table of several thousand probabilities most likely holds
-hit / penetration / component-damage odds — but **no value has been tied to observed
-in-game behaviour**. Treat this as a lead.
+Identified during the decal hunt. The non-float remainder (11.7%) is a `-1` sentinel plus
+out-of-range floats that read as **ranges in metres and angles in degrees**. There are **no
+small-integer indices anywhere in the file**.
+
+That rules `.ST` out as the home of any texture or decal selector — a guess made from two
+directions at once, and wrong from both. The actual camouflage selector is in
+[tank-tables.md](tank-tables.md).
+
+The record layout and the meaning of individual values are still undecoded.

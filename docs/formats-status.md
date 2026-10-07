@@ -4,9 +4,9 @@
 |---|---|---|
 | `.PAK` | 2 | **solved** — container, see [pak.md](pak.md) |
 | `.PZA` | 1409 | **solved** — indexed texture, 1409/1409 exact, see [pza.md](pza.md) |
-| `.PZE` | 324 | **solved** — message table, see [pze.md](pze.md) |
+| `.PZE` | 324 | **solved** — message table ([pze.md](pze.md)); also carries the binary tank roster ([tank-tables.md](tank-tables.md)) |
 | `.TXT` | 217 | plain Shift-JIS, source for `.PZE` |
-| `.ST` | 112 | partial — float stat table, see [st.md](st.md) |
+| `.ST` | 112 | partial — gunnery table, ranges and angles, see [st.md](st.md) |
 | `.PZ` | 129 | **solved** — models load, assemble and texture — see [pz.md](pz.md) |
 | `.PZD` | 57 | unknown |
 | `.AMD` | 54 | unknown — "AMD" may be animation data |
