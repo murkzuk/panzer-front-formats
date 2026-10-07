@@ -53,3 +53,54 @@ should lead to the loader, and from the loader to the parser.
 
 `refscan.py` (gp-aware, in the DeepseekSABoW workspace) resolves gp-relative loads and is
 the tool for the next step.
+
+## What the pointer table actually is
+
+`0x00242D70` onward is the **localised string table**, not a resource descriptor table.
+The path formats sit in it beside crew-role and component names, in three language blocks:
+
+```
+0x00242D80  ->  \D\UN\PZ\%06d.PZ
+0x00242DA0  ->  "Loader"  "Driver"  "Radio Operator"  "Rangefinder"
+0x00242DB0  ->  "Gun Commander"  "Forward MG Gunner"
+0x00242DE0  ->  "Fahrer"  "Pionier"
+0x00242E70  ->  "Kommandant"  "Entfernungsmesser"  "Richtkanonier"  "Kommissar"
+0x00242ED0  ->  "Barrel"  "Drive Mech."  "Engine Output"  "Lauf"
+```
+
+That independently confirms the crew roles read out of the `SET` text files.
+
+## Reference search
+
+272 code references land in the wider table region `0x00242C00..0x00243100`, all inside
+`0x0018Axxx..0x0018Cxxx` — the menu and vehicle-info UI. Narrowing to the PZ path entry
+itself (`0x00242D60..0x00242E60`) leaves **exactly one**:
+
+```
+00190A10  lui  v1,0x24
+00190A1C  addiu v1,v1,11824        -> 0x00242E30
+00190A30  sll  v0,a2,1 ; addu v0,v0,a2 ; sll v0,v0,3     -> index * 24
+00190A4C  lw   a2,0(v0)
+00190A50  jal  0x0011FEF0                                 -> text output
+```
+
+A 24-byte-stride table walk feeding a text routine — the vehicle information screen, not
+the model loader. The loader is therefore reached some other way, most likely a generic
+"load resource by format string and id" helper that fetches the format pointer from a table
+indexed by resource type.
+
+## Status
+
+The `.PZ` parser has **not** been located. Searches exhausted so far:
+
+| approach | result |
+|---|---|
+| shift-based x72 / x76 | 0 candidates |
+| immediate 72/76 near a `mult` | 2 hits, both unrelated |
+| `andi r,1` + `sll r,3` (the phase) | 2 hits, both bit-field code |
+| `lui`/`addiu` of a path string address | 0 references |
+| references to the PZ path table entry | 1, and it is UI text output |
+
+Next: find the generic resource loader. `cdrom0:\D.PAK` at `0x00263EC0` is referenced by
+whatever opens the archive, and the PAK entry lookup must take a name — that call site is a
+better entry point than the format strings.
