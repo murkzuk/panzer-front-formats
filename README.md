@@ -21,11 +21,11 @@ and crew-position interior panels. 1404 of 1405 files decode cleanly.*
 | [pak.md](docs/pak.md) | the disc archive — **solved** |
 | [pza.md](docs/pza.md) | indexed textures, 1409 files — **solved** |
 | [pze.md](docs/pze.md) | message tables, all in-game text — **solved** |
-| [pz.md](docs/pz.md) | models — scene graph **solved**, mesh partial |
+| [pz.md](docs/pz.md) | models — **solved**, with an OBJ exporter |
 | [st.md](docs/st.md) | per-vehicle statistics — partial |
 | [formats-status.md](docs/formats-status.md) | everything else, and what is still open |
 
-The mesh payload inside `.PZ` is the main thing still unsolved.
+Remaining unknowns are the triangle assembly inside `.PZ` and the material bindings.
 
 ## Tools
 
@@ -41,6 +41,9 @@ python tools/pakx.py "*NE*MAP*EVT01.*" out/
 
 # decode textures to PNG
 python tools/pza2png.py out/*.pza png/
+
+# convert a model to Wavefront OBJ
+python tools/pz2obj.py out/OBJ011.PZ model.obj
 ```
 
 Edit `ISO_PATH` at the top of `paklist.py` / `pakx.py` to point at your disc image.

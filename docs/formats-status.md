@@ -7,7 +7,7 @@
 | `.PZE` | 324 | **solved** — message table, see [pze.md](pze.md) |
 | `.TXT` | 217 | plain Shift-JIS, source for `.PZE` |
 | `.ST` | 112 | partial — float stat table, see [st.md](st.md) |
-| `.PZ` | 129 | **container solved**, mesh payload partial — see [pz.md](pz.md) |
+| `.PZ` | 129 | **solved** — scene graph, vertex streams and start offset; triangle assembly imperfect — see [pz.md](pz.md) |
 | `.PZD` | 57 | unknown |
 | `.AMD` | 54 | unknown — "AMD" may be animation data |
 | `.DAT` | 43 | unknown |

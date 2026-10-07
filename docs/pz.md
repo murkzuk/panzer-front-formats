@@ -26,7 +26,7 @@ Node IDs are semantic, not sequential — `100000` for the root, then codes like
 `10090`, `60010`, `1101`, `30000`. They group plausibly by part, but **no ID has been tied
 to a named component**.
 
-## Payloads — vertex format confirmed, start offset still open
+## Payloads — solved
 
 There is **no per-node header**. 243 payloads of identical length were diffed byte by byte
 and share **zero** constant bytes, so nothing sits at a fixed position. No VIF or GIF tags
@@ -45,7 +45,22 @@ are present either, so this is not stored DMA packet data.
 `(1.0, 0.0, u, v)`. That was a framing error — the rows are `(u, v, 1.0, 0.0)` and the
 earlier reading was shifted 8 bytes.
 
-### The strong result
+### The start offset — SOLVED
+
+```
+phase = 8 * (nodeCount % 2)
+```
+
+Vertex rows begin `phase` bytes into each payload. **4947 / 4947 payloads agree, 100%.**
+
+The reason is structural: the header is `base = 8 + 76N` bytes long, so an odd node count
+leaves the data 4 bytes off an 8-byte boundary and an 8-byte skip corrects it. The phase is
+therefore **constant within a file** — checked on all 129, none mixed — and derivable from
+the node count alone.
+
+Every payload offset in the table is itself a multiple of 16.
+
+### Supporting evidence
 
 Segmenting a payload into 16-byte rows and classifying each, **96.3% of the 5,677 payloads
 of 160 bytes or more classify with zero unrecognised rows** at one of the four possible
@@ -65,21 +80,38 @@ one 3888-byte payload gives `T39 . 000 . P60 N60 C60 . T20`.
 Payload length also satisfies `48 + 64*V` for 84.9% of payloads, 64 bytes being the four
 16-byte rows of one vertex.
 
-### The one thing still missing
+### Still not known
 
-**What sets the phase.** The obvious candidate was 16-byte alignment within the file; that
-explains only **35.2%**, so it is not the rule. Until the start offset can be derived rather
-than searched for, a loader would have to brute-force four phases per payload and pick the
-one that classifies cleanly — which works 96.3% of the time but is a heuristic, not a
-format.
+- **Triangle assembly.** Positions appear to be listed per triangle, but taking every three
+  consecutive position rows gives clean results for simple map objects and a partly
+  scrambled result for vehicles, so strips or per-sub-mesh restarts are likely.
+- **Position / normal separation.** Both rows are `(x, y, z, 1.0)` and are currently told
+  apart by testing whether the vector is unit length. A position that happens to lie on the
+  unit sphere is mis-sorted, which breaks the triangle sequence after it. This is the most
+  likely cause of the stray geometry on vehicles and wants a proper rule.
+- Material and texture bindings — which `.PZA` a sub-mesh uses.
+- What the per-node ID values mean.
 
-Also still unknown: material and texture bindings (which `.PZA` a sub-mesh uses), and
-whether sub-mesh boundaries inside a payload are marked or implied. No index buffer has
-been found, so vertices are presumably listed per triangle.
+## Loader
+
+`tools/pz2obj.py` converts a `.PZ` to Wavefront OBJ, composing each node's local matrix up
+the parent chain to place parts in model space.
+
+```bash
+python tools/pz2obj.py D_MA_Obj_OBJ011.PZ out.obj
+```
+
+![A decoded map object](img/pz-decoded.png)
+
+*`\D\MA\Obj\OBJ011.PZ` — 4 nodes, 96 vertices, 32 triangles, three views. Walls and a
+roof panel, assembled correctly from the hierarchy.*
+
+Vehicles export with recognisable hull, turret and gun barrel but carry stray triangles,
+for the reasons above. Simple static objects come out clean.
 
 ### Negative results worth keeping
 
 - 243 same-length payloads share no constant bytes — there is no fixed header.
 - No VIF UNPACK or GIF tags anywhere in the payloads.
-- Predicting `positions + normals == 2V` from the size rule matched only 21% before the
-  phase error was found; that figure is superseded and should be re-measured.
+- 16-byte file alignment does **not** predict the phase (35.2%); the node-count parity rule
+  does (100%).
