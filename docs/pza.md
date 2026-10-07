@@ -6,17 +6,24 @@ briefing maps, national markings, interior panels.
 ## Layout
 
 ```
-0x00  u32   bpp flag   0 = 4bpp (16-colour), 1 = 8bpp (256-colour)
+0x00  u32   format: 0 = 4bpp (16-colour), 1 = 8bpp (256-colour)
 0x04  u32   width
 0x08  u32   height
-0x0C  u32   0
-0x10        palette, RGBA8888, 16 or 256 entries
+0x0C  u32   palette count; 0 means 1
+0x10        palettes, RGBA8888, count x (16 or 256) entries
  ...        indexed pixels, 4bpp low-nibble-first, or 8bpp
 ```
 
 Alpha follows the PS2 convention: **0x80 is fully opaque**, so double it for 8-bit alpha.
 
-Self-check, true for every file: `16 + palette + (width * height * bpp / 8) == filesize`
+Self-check, exact for **1409 / 1409** files:
+
+```
+16 + count * ncolours * 4 + width * height * bpp / 8  ==  filesize
+```
+
+Palette alpha is a constant 128 on every entry but index 0 — the PS2 convention, so double it
+to 255 rather than exporting it raw, or everything comes out half transparent.
 
 ## Verified
 

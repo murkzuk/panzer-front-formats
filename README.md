@@ -21,11 +21,11 @@ and crew-position interior panels. 1404 of 1405 files decode cleanly.*
 | [pak.md](docs/pak.md) | the disc archive — **solved** |
 | [pza.md](docs/pza.md) | indexed textures, 1409 files — **solved** |
 | [pze.md](docs/pze.md) | message tables, all in-game text — **solved** |
-| [pz.md](docs/pz.md) | models — **solved**, with an OBJ exporter |
+| [pz.md](docs/pz.md) | models — **solved**, loading and textured |
 | [st.md](docs/st.md) | per-vehicle statistics — partial |
 | [formats-status.md](docs/formats-status.md) | everything else, and what is still open |
 
-Remaining unknowns are the triangle assembly inside `.PZ` and the material bindings.
+Remaining unknowns are decal placement and the `.T` / `.TEX` map-prop textures.
 
 ## Tools
 

@@ -1,238 +1,105 @@
-# PZ — model / scene graph
+# PZ — model format  **SOLVED**
 
-129 files, 37 MB, under `\D\MA\Obj` (map objects), `\D\UN\PZ` (vehicles) and
-`\D\OT\AS\INF\MDL` (infantry). **Container solved, mesh payload only partly decoded.**
+129 files, 37 MB, under `\D\MA\Obj` (map props), `\D\UN\PZ` (vehicles) and
+`\D\OT\AS\INF\MDL` (infantry). Models load, assemble and texture correctly.
 
-## Container — verified on all 129 files
+![Panzer III decoded from 110003.PZ](img/pz-textured.png)
+
+## Layout
 
 ```
-0x00            u32       file size (equals the actual file length in all 129)
-0x04            u32       node count N
-0x08            N x u32   parent index, 0xFFFFFFFF = root
-0x08 + 4N       N x u32   node ID (100000, 100001, 10090, 60010, 1101 ...)
-0x08 + 8N       N x 64    4x4 float matrix, the node's local transform
-0x08 + 72N      N x u32   payload offset, relative to the end of this table
-0x08 + 76N      ...       per-node payloads, in order
++0                u32       size (== file size)
++4                u32       n   node count
++8                n x u32   parent index, 0xFFFFFFFF = root
++8  + 4n          n x u32   node id (a part number, e.g. 100011 — not an index)
++8  + 8n          n x 64    node matrix, 16 float32, row-major
++8  + 72n         n x u32   payload offset, relative to `mesh`
++8  + 76n         n x 24    AABB table, 6 float32: maxX,minX,maxY,minY,maxZ,minZ
++8  + 100n        32        zero padding
+mesh = +8+100n+32           mesh data
 ```
 
-Checked across the whole set: `word0 == filesize`, offsets ascending and starting at 0,
-and the last payload ending exactly at EOF — **129 / 129 consistent**.
+Node *i* owns `[mesh+offs[i], mesh+offs[i+1])`; the last runs to EOF. **The offset table is
+the authoritative partition** — do not scan for delimiters.
 
-The parent array is a valid hierarchy: every entry is either `-1` or a node index below
-`N`. A tank is typically 150-200 nodes, a map object 4-120. The matrices are frequently
-identity with Z negated, i.e. a handedness flip.
+### AABB table
 
-Node IDs are semantic, not sequential — `100000` for the root, then codes like `100011`,
-`10090`, `60010`, `1101`, `30000`. They group plausibly by part, but **no ID has been tied
-to a named component**.
+`max` is stored **before** `min`. An empty node is an *inverted* box, `(-100000, +100000)` on
+all three axes, so `max < min` means "no geometry".
 
-## Payloads — solved
+This is also a free self-check on any parser, and it is a strong one: the table is
+independent of the mesh data, and a correct decode must reproduce it exactly.
 
-There is **no per-node header**. 243 payloads of identical length were diffed byte by byte
-and share **zero** constant bytes, so nothing sits at a fixed position. No VIF or GIF tags
-are present either, so this is not stored DMA packet data.
+### Vertex streams
 
-### Vertex rows — 16 bytes, four types
+A sub-mesh is four equal streams of 16-byte rows, in order **P → N → C → T**:
 
-| type | shape | notes |
+| stream | row | |
 |---|---|---|
-| `T` texcoord | `(u, v, 1.0, 0.0)` | u,v in 0..1 |
-| `P` position | `(x, y, z, 1.0)` | part-local space |
-| `N` normal | `(nx, ny, nz, 1.0)` | same shape as position, told apart by `norm == 1` |
-| `C` colour | `(r, g, b, 0.0)` | 0..255 as floats; `255,255,255` and `128,128,128` dominate |
+| P position | `(x, y, z, 1.0)` | |
+| N normal | `(nx, ny, nz, 1.0)` | unit length; `(0,0,0)` on degenerate vertices |
+| C colour | `(r, g, b, 0.0)` | 0..255 |
+| T texcoord | `(u, v, 1.0, 0.0)` | u,v may exceed 1 |
 
-**Correction to an earlier revision of this file:** the texcoord row was previously given as
-`(1.0, 0.0, u, v)`. That was a framing error — the rows are `(u, v, 1.0, 0.0)` and the
-earlier reading was shifted 8 bytes.
+P and N carry `w == 1.0`, C and T carry `w == 0.0`, so **the leading run of `w == 1.0` rows
+is exactly 2V**. Read `4V` rows, skip zero padding, repeat.
 
-### The start offset — SOLVED
+### Connectivity
 
-```
-phase = 8 * (nodeCount % 2)
-```
+**Flat triangle list.** `V = 3 x triangles`, consecutive non-overlapping triples. No index
+buffer. Positions repeat (~41% unique) because the soup splits vertices at hard edges.
 
-Vertex rows begin `phase` bytes into each payload. **4947 / 4947 payloads agree, 100%.**
-
-The reason is structural: the header is `base = 8 + 76N` bytes long, so an odd node count
-leaves the data 4 bytes off an 8-byte boundary and an 8-byte skip corrects it. The phase is
-therefore **constant within a file** — checked on all 129, none mixed — and derivable from
-the node count alone.
-
-Every payload offset in the table is itself a multiple of 16.
-
-### Supporting evidence
-
-Segmenting a payload into 16-byte rows and classifying each, **96.3% of the 5,677 payloads
-of 160 bytes or more classify with zero unrecognised rows** at one of the four possible
-4-byte phases. The four types above account for essentially every row in the file set.
-That is solid confirmation of the vertex format.
-
-Typical shapes, with padding rows removed:
+### Placement and orientation
 
 ```
-TPNC      TPNCT      CTPNC      NCTPN
+world = v @ M_node @ M_parent @ ... @ M_root        (child first)
+display: (x, y, z) -> (x, -y, -z)                   (a view convention)
 ```
 
-The same four streams in a rotating order, consistent with a repeating `T -> P -> N -> C`
-cycle that different payloads enter at different points. Counts within a payload agree:
-one 3888-byte payload gives `T39 . 000 . P60 N60 C60 . T20`.
+Row-vector convention — **translation is row 3**, not column 3. The 3x3 part is identity on
+most nodes, an axis mirror on a few. The translations are the placement and are mandatory.
 
-Payload length also satisfies `48 + 64*V` for 84.9% of payloads, 64 bytes being the four
-16-byte rows of one vertex.
+### The redundant shell
 
-### Position / normal separation — fixed, but it was not the bug
+Every vehicle holds **two root subtrees**, and the first is a simplified shell the game does
+not draw — large flat panels with a single texel, about 42% of surface area on `110003`.
+Drawn, it blanks the hull sides and engine deck.
 
-Positions and normals share the shape `(x, y, z, 1.0)` and arrive as one contiguous run,
-**positions first, then normals**. Measured over 13,644 runs: the second half is 92.2%
-unit vectors, the first half only 9.6%.
+**Rule: drop any root subtree in which every sub-mesh is flat** (all vertices share one UV).
+Fires on 46 / 129 models, always exactly one subtree. The 100% threshold matters — `330059`
+root 0 is 57% flat and must be kept.
 
-`tools/pz2obj.py` now finds the split by changepoint — the index maximising
-(non-unit before) + (unit after) — rather than testing each row for unit length. That is
-principled and handles odd-length runs, which an exact halving cannot.
+## Verification
 
-**It recovered 22 vertices out of 3793.** Mis-sorted positions were therefore *not* the
-cause of the scrambled vehicle meshes, and the earlier note blaming them was wrong.
-
-### Sub-mesh boundaries — found
-
-A payload holds several sub-meshes, delimited by **three consecutive all-zero rows**
-(48 bytes). Measured over 11,401 delimiters across the whole file set:
-
-| | |
+| check | result |
 |---|---|
-| row immediately **after** a delimiter | `P` position in **11,349** (99.5%) |
-| row immediately **before** | `T` texcoord in **11,286** (99.0%) |
+| node AABB == decoded vertex bbox | **5671 / 5671 (100%)** across all 129 files |
+| sub-mesh vertex count divisible by 3 | **12311 / 12311 (100%)** (chance 33%) |
+| triangle quality by phase | phase 0 **0.1773**, phase 1 0.1031, phase 2 0.0886 — a strip would score equally at each |
 
-So a sub-mesh is ordered **P -> N -> C -> T**, and the delimiter separates one sub-mesh's
-texcoords from the next sub-mesh's positions. Zero-runs are 3 rows long in 11,401 of
-~12,400 cases; the stray lengths (1, 2, 9, 15) are rarer and unexplained.
+The first two were reproduced independently in this repo from the spec below.
 
-This also matches the size rule: one 3-row delimiter is exactly the 48 bytes in
-`48 + 64*V`.
+## Superseded — do not resurrect
 
-`tools/pz2obj.py` now restarts triangles at each delimiter rather than running them across
-boundaries. **It changed 110003 from 1262 to 1144 triangles and the mesh is marginally
-cleaner — but vehicles still do not assemble into recognisable shapes.** The delimiter is
-real; it was not the remaining bug.
+Earlier revisions of this file claimed, and these are **wrong**:
 
-### Vertex count — structural, not inferred
+* ~~"sub-meshes are delimited by three all-zero rows"~~ — an all-black colour stream is a
+  legitimate long zero run. `OBJ011` node 2 is `P(30) N(30) C(30, all zero) T(30)`. The 99.5%
+  measurement behind this was real and the rule was still wrong; it failed exactly where it
+  mattered.
+* ~~"`phase = 8*(n%2)` is part of the format"~~ — it is a *symptom* of the 24n-byte AABB
+  table, which lands 8 bytes past a 16-byte boundary when n is odd. The rule held at 100%
+  without being the explanation.
+* ~~"±100000 sentinels contaminate the position stream"~~ — they are the AABB table's
+  empty-box value, sitting in front of the mesh.
+* ~~"node transforms are essentially identity"~~ — identity in their 3x3 part only; the
+  translations are the placement.
 
-A sub-mesh is four equal streams, so
+What did hold up: there is **no index list** (positions repeat ~41% unique), the matrices are
+row-vector, and composition is child-first.
 
-```
-V = (rows between one delimiter and the next) / 4
-```
+## Credit
 
-That chunk length is divisible by 4 in 8,399 of 11,053 sub-meshes, and the rule is
-confirmed independently: **the colour run length equals that V in 8,996 of 11,053 (81.4%)**.
-
-The earlier changepoint on the position/normal run **disagrees with it 34.6% of the time**,
-so the hypothesis that the changepoint was corrupting sub-meshes is confirmed. The exporter
-now derives V structurally and falls back to the changepoint only when the position run is
-shorter than V.
-
-It took 110003 from 1144 to 895 triangles and the mesh is cleaner again — **but vehicles
-still do not assemble into recognisable shapes.** Three successive structural fixes (sub-mesh
-restart, structural V, position/normal split) have each been confirmed correct by
-measurement and each left the rendering broken. Something else is still wrong.
-
-### There is NO index list
-
-Tested directly: within a sub-mesh, only **44.6%** of positions are unique — each repeats
-about 2.2 times (110003 0.446, 610088 0.449, a map object 0.302). Vertices are duplicated,
-so the data is **non-indexed** and no index buffer needs to exist. That closes the question.
-
-For reference, a non-indexed triangle *list* of a closed mesh predicts roughly 0.17 unique
-and a *strip* roughly 0.5. The measured 0.446 sits near the strip figure, but rendering the
-same sub-meshes both ways makes the list visibly cleaner and the strip adds long spurious
-triangles between separate runs. The two signals disagree and that is not resolved.
-
-### Sub-meshes span node payloads
-
-A delimiter sits at a payload *start* in only **60 of 11,401** cases, so sub-meshes run
-across node boundaries. Reading the payload region as one continuous row stream, and
-attributing each sub-mesh to the node whose offset range contains its first row, recovers
-about 30% more geometry (110003: 2744 -> 3630 vertices). `tools/pz2obj.py` now does this.
-
-### Matrices are row-vector
-
-Translation is in the last row (`m12..m14`); the fourth column is zero in all 129 files, so
-`v_world = v_local * M_child * M_parent * ... * M_root`. The exporter was composing
-root-first, which is backwards — now corrected. In practice it changes almost nothing,
-because nearly every rotation is identity, and both orders give the same bounding box to
-within 3%.
-
-### The prefix before the first delimiter is bounding-volume data
-
-Examined across all 129 files. It is **not** a primitive table and carries no per-sub-mesh
-type or vertex count.
-
-- **13,101 float pairs contain a +-100000 sentinel** — the classic "empty axis-aligned
-  bounding box" initialiser, and the same marker already noted in the root node's payload.
-- 60.3% of 84,020 pairs are ordered `first >= second`, consistent with (max, min) extents.
-- Its length does not divide by the node count: 2.08 to 19.75 rows per node across the set,
-  mean 7.33. So it is a tree of variable depth, not a per-node table.
-
-This was the last named candidate for where a primitive type might live. It is ruled out.
-
-### Still not known — triangle connectivity
-
-This is the open problem. Positions extract with sensible bounding boxes (one vehicle hull
-node: x 3.0 x y 1.6 x z 5.6, correct proportions for a tank hull), but the mesh does not
-assemble:
-
-- **triangle list** (every 3 consecutive), **triangle strip** and **fan** were each rendered
-  and compared. All three produce incoherent geometry on vehicles. The list is the least
-  bad.
-- Rendering nodes **in local space, without the hierarchy**, is scrambled too — so the
-  parent-chain matrix composition is not at fault either.
-- Simple map objects (4 nodes) assemble correctly; vehicles (150-200 nodes) do not.
-
-Ruled out by test, in order: triangle list vs strip vs fan; the parent-chain matrix
-composition; triangles running across sub-mesh boundaries; the changepoint vertex count;
-an index list (there is none); sub-meshes being confined to one payload (they are not);
-and the matrix composition order. Normals leak into the position run in only 5.5% of
-sub-meshes, so that is not it either.
-
-Each of those was a genuine defect and each was fixed. None was the cause.
-
-The prefix has since been examined (above) and holds bounding-volume data, not primitive
-information — so that candidate is gone too.
-
-What genuinely remains untested: whether the stream order within a sub-mesh varies rather
-than always being P-N-C-T, and whether the engine itself derives connectivity some other
-way. Answering it properly probably needs the loader in the game's ELF rather than more
-inference from the data. `$gp = 0x00273570` and a gp-aware cross-reference scanner exist in
-the research notes; a multiply by 72 or 76 in the ELF would locate the .PZ parser.
-
-A simple 4-node map object assembles correctly and renders as clean walls and a roof, so
-the container, phase, transforms and vertex extraction are all sound. The failure is
-specific to how a vehicle's many small sub-meshes are stitched.
-
-### Also not known
-- Material and texture bindings — which `.PZA` a sub-mesh uses.
-- What the per-node ID values mean.
-
-## Loader
-
-`tools/pz2obj.py` converts a `.PZ` to Wavefront OBJ, composing each node's local matrix up
-the parent chain to place parts in model space.
-
-```bash
-python tools/pz2obj.py D_MA_Obj_OBJ011.PZ out.obj
-```
-
-![A decoded map object](img/pz-decoded.png)
-
-*`\D\MA\Obj\OBJ011.PZ` — 4 nodes, 96 vertices, 32 triangles, three views. Walls and a
-roof panel, assembled correctly from the hierarchy.*
-
-Vehicles export with recognisable hull, turret and gun barrel but carry stray triangles,
-for the reasons above. Simple static objects come out clean.
-
-### Negative results worth keeping
-
-- 243 same-length payloads share no constant bytes — there is no fixed header.
-- No VIF UNPACK or GIF tags anywhere in the payloads.
-- 16-byte file alignment does **not** predict the phase (35.2%); the node-count parity rule
-  does (100%).
+The format was solved in a parallel DeepSeek session commissioned by the repo owner; the full
+working notes are in that workstream's `PZ_HANDOVER.md`. The spec above was re-derived and
+re-verified against the files independently before being published here.
