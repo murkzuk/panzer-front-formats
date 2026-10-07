@@ -1,0 +1,38 @@
+# Game assets and anything extracted from the disc are NOT redistributable.
+# Run the tools against your own copy of the game.
+*.iso
+*.PAK
+*.pak
+*.pza
+*.PZA
+*.pze
+*.PZE
+*.pz
+*.PZ
+*.pzd
+*.PZD
+*.st
+*.ST
+*.amd
+*.AMD
+*.tex
+*.TEX
+*.wav
+*.WAV
+*.ELF
+*.exe
+*.EXE
+*.bms
+
+# Game text. The .PZE sources are plain .txt and ARE copyrighted game content.
+# Documentation in this repo is .md, so a blanket rule is safe here.
+*.txt
+*.TXT
+pza_png/
+txt/
+st/
+ne/
+dev/
+out/
+__pycache__/
+*.pyc
