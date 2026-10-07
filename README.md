@@ -8,11 +8,18 @@ Nothing extracted from the game is redistributable, and the `.gitignore` keeps i
 the only exception is the small illustrative thumbnails below, included to document what
 the texture decoder produces.
 
+![Panzer III decoded from 110003.PZ and textured from 11000301.PZA](docs/img/pz-panzer3.png)
+
+*`\D\UN\PZ\110003.PZ` loaded by `tools/pz2obj.py` and textured from
+`\D\UN\PZA\11000301.PZA`. 189 nodes assembled through the parent hierarchy — idler, six road
+wheels, drive sprocket, three return rollers, cupola, mantlet and antenna. Hull decals are not
+yet placed; see [pz.md](docs/pz.md).*
+
 ![Textures decoded from the PZA format](docs/img/pza-samples.png)
 
 *Decoded with `tools/pza2png.py`: vehicle skins, cloud layers, 1940 briefing maps of the
-Belgian ground around Jandrenouille and Merdorp, national markings and turret numerals,
-and crew-position interior panels. 1404 of 1405 files decode cleanly.*
+Belgian ground around Jandrenouille and Merdorp, national markings and turret numerals, and
+crew-position interior panels. 1409 of 1409 files decode exactly.*
 
 ## Formats
 
