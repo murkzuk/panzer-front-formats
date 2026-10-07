@@ -136,6 +136,32 @@ still do not assemble into recognisable shapes.** Three successive structural fi
 restart, structural V, position/normal split) have each been confirmed correct by
 measurement and each left the rendering broken. Something else is still wrong.
 
+### There is NO index list
+
+Tested directly: within a sub-mesh, only **44.6%** of positions are unique — each repeats
+about 2.2 times (110003 0.446, 610088 0.449, a map object 0.302). Vertices are duplicated,
+so the data is **non-indexed** and no index buffer needs to exist. That closes the question.
+
+For reference, a non-indexed triangle *list* of a closed mesh predicts roughly 0.17 unique
+and a *strip* roughly 0.5. The measured 0.446 sits near the strip figure, but rendering the
+same sub-meshes both ways makes the list visibly cleaner and the strip adds long spurious
+triangles between separate runs. The two signals disagree and that is not resolved.
+
+### Sub-meshes span node payloads
+
+A delimiter sits at a payload *start* in only **60 of 11,401** cases, so sub-meshes run
+across node boundaries. Reading the payload region as one continuous row stream, and
+attributing each sub-mesh to the node whose offset range contains its first row, recovers
+about 30% more geometry (110003: 2744 -> 3630 vertices). `tools/pz2obj.py` now does this.
+
+### Matrices are row-vector
+
+Translation is in the last row (`m12..m14`); the fourth column is zero in all 129 files, so
+`v_world = v_local * M_child * M_parent * ... * M_root`. The exporter was composing
+root-first, which is backwards — now corrected. In practice it changes almost nothing,
+because nearly every rotation is identity, and both orders give the same bounding box to
+within 3%.
+
 ### Still not known — triangle connectivity
 
 This is the open problem. Positions extract with sensible bounding boxes (one vehicle hull
@@ -149,14 +175,17 @@ assemble:
   parent-chain matrix composition is not at fault either.
 - Simple map objects (4 nodes) assemble correctly; vehicles (150-200 nodes) do not.
 
-Ruled out by test: triangle list vs strip vs fan; the parent-chain matrix composition
-(nodes are scrambled in local space too); triangles running across sub-mesh boundaries;
-and the changepoint vertex count. Each was a real defect, each was fixed, none was the
-cause.
+Ruled out by test, in order: triangle list vs strip vs fan; the parent-chain matrix
+composition; triangles running across sub-mesh boundaries; the changepoint vertex count;
+an index list (there is none); sub-meshes being confined to one payload (they are not);
+and the matrix composition order. Normals leak into the position run in only 5.5% of
+sub-meshes, so that is not it either.
 
-What remains untested: whether an index list exists somewhere not yet located, whether
-sub-meshes carry a primitive-type field in the undecoded prefix before the first delimiter,
-and whether the four streams are in a per-sub-mesh order other than P-N-C-T.
+Each of those was a genuine defect and each was fixed. None was the cause.
+
+What remains untested: whether the undecoded prefix before the first delimiter carries a
+primitive type or a per-sub-mesh vertex count, and whether the stream order within a
+sub-mesh varies rather than always being P-N-C-T.
 
 A simple 4-node map object assembles correctly and renders as clean walls and a roof, so
 the container, phase, transforms and vertex extraction are all sound. The failure is
