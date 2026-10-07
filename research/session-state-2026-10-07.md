@@ -188,8 +188,8 @@ row 3; composition is child-first.
 
 | | |
 |---|---|
-| **PR #790** | https://github.com/PCSX2/pcsx2_patches/pull/790 — OPEN, MERGEABLE, **0 checks**. A first-time contributor needs a maintainer to approve CI. Normal turnaround there is about a day; one recent PR took 5 weeks. Nothing is wrong with it. Nudge politely after a week or two. |
-| **A/D turn direction** | PanzerFront_KBM.ini — never verified. The manual's "L2 moves the tank forward left" is ambiguous between "left track" and "veers left". Needs the user to drive and say which way A turns. Two-line fix if wrong. |
+| ~~**PR #790**~~ | **CLOSED as an issue — out of our hands, stop tracking.** https://github.com/PCSX2/pcsx2_patches/pull/790 is OPEN, MERGEABLE, 0 checks, because a first-time contributor needs a maintainer to approve CI. Nothing is wrong with it and there is no action available to us. Do not re-raise it as a task; if it merges, it merges. |
+| ~~**A/D turn direction**~~ | **RESOLVED 2026-10-07 — the mapping is correct, no fix needed.** The user drove it: "it drives and steers but is clunky compared to the analogue levers, as it would be." So the manual's "L2 moves the tank forward left" meant the *left track*, which is how `PanzerFront_KBM.ini` already binds it. The remaining clunkiness is inherent: L2/R2 are pressure-sensitive analogue buttons on the PS2 and the game uses them as proportional track levers, so any keyboard key gives an all-or-nothing lever. That is the control scheme, not the binding. |
 | **Duplicate images** | docs/img/pz-panzer3.png and pz-textured.png differ only by a burnt-in caption. One should go. |
 | **Decal classifier over-selects** | see section 4 |
 | **.PZ parser not found in the ELF** | five search strategies failed, all tabulated in research/elf-notes.md. Live thread: whatever reads the resource table. |
