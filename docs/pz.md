@@ -26,60 +26,60 @@ Node IDs are semantic, not sequential — `100000` for the root, then codes like
 `10090`, `60010`, `1101`, `30000`. They group plausibly by part, but **no ID has been tied
 to a named component**.
 
-## Payloads — four streams identified, chunking still open
+## Payloads — vertex format confirmed, start offset still open
 
-There is **no per-node header**; a payload begins immediately with float data.
+There is **no per-node header**. 243 payloads of identical length were diffed byte by byte
+and share **zero** constant bytes, so nothing sits at a fixed position. No VIF or GIF tags
+are present either, so this is not stored DMA packet data.
 
-### The four vertex streams
+### Vertex rows — 16 bytes, four types
 
-All are arrays of four 32-bit floats, 16 bytes per element:
-
-| stream | shape | notes |
+| type | shape | notes |
 |---|---|---|
-| position | `(x, y, z, 1.0)` | part-local space |
-| normal | `(nx, ny, nz, 1.0)` | same shape as position; told apart by `\|xyz\| == 1` |
-| vertex colour | `(r, g, b, 0.0)` | 0..255 as floats; `255,255,255` and `128,128,128` dominate |
-| texture coords | `(1.0, 0.0, u, v)` | u,v in 0..1; consecutive rows form triangles, rows 1-3 and 4-6 of a quad sharing the expected corners |
+| `T` texcoord | `(u, v, 1.0, 0.0)` | u,v in 0..1 |
+| `P` position | `(x, y, z, 1.0)` | part-local space |
+| `N` normal | `(nx, ny, nz, 1.0)` | same shape as position, told apart by `norm == 1` |
+| `C` colour | `(r, g, b, 0.0)` | 0..255 as floats; `255,255,255` and `128,128,128` dominate |
 
-Four streams x 16 bytes = **64 bytes per vertex**.
+**Correction to an earlier revision of this file:** the texcoord row was previously given as
+`(1.0, 0.0, u, v)`. That was a framing error — the rows are `(u, v, 1.0, 0.0)` and the
+earlier reading was shifted 8 bytes.
 
-### The size rule
+### The strong result
 
-`payloadLength = 48 + 64 * V` holds for **84.9%** of the 10,038 payloads, which gives a
-vertex count. The remaining 15% are `32`, `16` or `0` mod 64 — consistent with sub-meshes
-that carry three streams rather than four, but this has not been confirmed.
+Segmenting a payload into 16-byte rows and classifying each, **96.3% of the 5,677 payloads
+of 160 bytes or more classify with zero unrecognised rows** at one of the four possible
+4-byte phases. The four types above account for essentially every row in the file set.
+That is solid confirmation of the vertex format.
 
-Payload lengths are divisible by 16 in 99.6% of cases and by 24 in 100%.
-
-### Sub-meshes
-
-A payload holds **more than one sub-mesh**, and their vertex counts sum to `V`. Clearest
-example, a 6624-byte payload giving `V = (6624-48)/64 = 102`:
+Typical shapes, with padding rows removed:
 
 ```
-C11  pad3  P60 N60 C120  pad3  P42 N42 C73
-                 ^^^              ^^^
-                 60      +        42   = 102 = V
+TPNC      TPNCT      CTPNC      NCTPN
 ```
 
-Sub-meshes appear to be separated by three zero floats.
+The same four streams in a rotating order, consistent with a repeating `T -> P -> N -> C`
+cycle that different payloads enter at different points. Counts within a payload agree:
+one 3888-byte payload gives `T39 . 000 . P60 N60 C60 . T20`.
 
-### What is still NOT known
+Payload length also satisfies `48 + 64*V` for 84.9% of payloads, 64 bytes being the four
+16-byte rows of one vertex.
 
-- **The stream offsets.** Boundaries are found by classifying content, not by reading any
-  count or tag. In one leaf the UV rows are split 40 at the start and 20 at the end of the
-  payload with position, normal and colour data in between — a layout no simple
-  `[UV][POS][NRM][COL]` model explains.
-- **The sub-mesh header.** Each sub-mesh is preceded by a short run that classifies as
-  colour-like, of varying length (11, 86, ...). Its contents have not been decoded.
-- Material and texture bindings; which `.PZA` a sub-mesh uses.
-- No index buffer has been found, so vertices are presumably listed per triangle.
+### The one thing still missing
 
-A check worth recording as a *negative* result: predicting `positions + normals == 2V`
-from the size rule matches only **21%** of payloads, always falling short by a multiple of
-6. That is most likely the position/normal classifier mis-sorting rows whose length is
-near 1, not a failure of the size rule — but it has not been run down, and until it is,
-the vertex count cannot be trusted per sub-mesh.
+**What sets the phase.** The obvious candidate was 16-byte alignment within the file; that
+explains only **35.2%**, so it is not the rule. Until the start offset can be derived rather
+than searched for, a loader would have to brute-force four phases per payload and pick the
+one that classifies cleanly — which works 96.3% of the time but is a heuristic, not a
+format.
 
-**Still not enough to load a model.** The hierarchy, transforms, vertex format and total
-vertex count are known; where each stream begins is not.
+Also still unknown: material and texture bindings (which `.PZA` a sub-mesh uses), and
+whether sub-mesh boundaries inside a payload are marked or implied. No index buffer has
+been found, so vertices are presumably listed per triangle.
+
+### Negative results worth keeping
+
+- 243 same-length payloads share no constant bytes — there is no fixed header.
+- No VIF UNPACK or GIF tags anywhere in the payloads.
+- Predicting `positions + normals == 2V` from the size rule matched only 21% before the
+  phase error was found; that figure is superseded and should be re-measured.
